@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Kintsugi",
-    platforms: [.iOS(.v18)],
+    platforms: [.iOS(.v17)],
     targets: [
         .executableTarget(
             name: "Kintsugi",
