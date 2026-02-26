@@ -42,7 +42,6 @@ jobs:
       - name: Build for simulator
         run: |
           cd Kintsugi.swiftpm
-          set -o pipefail
           xcodebuild build \
             -scheme Kintsugi \
             -destination "id=${{ env.UDID }}" \
@@ -50,19 +49,27 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
-            2>&1 | tee /tmp/xcodebuild.log | grep -E "error:|Build succeeded|Build FAILED|\.swift:[0-9]" || true
-          grep -q "Build FAILED" /tmp/xcodebuild.log && exit 1 || true
+            2>&1 | tee /tmp/xcodebuild.log
+          # fail fast if xcodebuild failed
+          grep -q "BUILD FAILED\|Build FAILED" /tmp/xcodebuild.log && exit 1 || true
+
+      - name: Find built app
+        run: |
+          echo "=== DerivedData products ==="
+          find DerivedData/Build/Products -maxdepth 3 2>/dev/null || echo "(no DerivedData/Build/Products)"
+          echo "=== All .app bundles ==="
+          find DerivedData -name "*.app" 2>/dev/null || echo "none"
+          APP=$(find DerivedData -name "*.app" -not -path "*/SourcePackages/*" | head -1)
+          echo "APP=$APP"
+          echo "APP=$APP" >> $GITHUB_ENV
+          BUNDLE_ID=$(defaults read "$APP/Info.plist" CFBundleIdentifier 2>/dev/null || echo "")
+          echo "BUNDLE_ID=$BUNDLE_ID"
+          echo "BUNDLE_ID=$BUNDLE_ID" >> $GITHUB_ENV
 
       - name: Install app on simulator
         run: |
-          APP=$(find DerivedData -name "Kintsugi.app" \
-            -not -path "*/SourcePackages/*" \
-            -not -path "*/Index.noindex/*" \
-            | head -1)
-          echo "Found app: $APP"
-          xcrun simctl install "${{ env.UDID }}" "$APP"
-          BUNDLE_ID=$(defaults read "$APP/Info.plist" CFBundleIdentifier)
-          echo "BUNDLE_ID=$BUNDLE_ID" >> $GITHUB_ENV
+          echo "Installing ${{ env.APP }}"
+          xcrun simctl install "${{ env.UDID }}" "${{ env.APP }}"
 
       - name: Launch app
         run: |
