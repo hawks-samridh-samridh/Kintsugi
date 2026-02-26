@@ -4,8 +4,8 @@ import SwiftUI
 struct VaseSceneView: UIViewRepresentable {
     @Environment(AppModel.self) private var appModel
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
+    func makeCoordinator() -> VaseSceneCoordinator {
+        VaseSceneCoordinator()
     }
 
     func makeUIView(context: Context) -> SCNView {
@@ -37,7 +37,7 @@ struct VaseSceneView: UIViewRepresentable {
 }
 
 @MainActor
-final class Coordinator: NSObject {
+final class VaseSceneCoordinator: NSObject {
     var scnView: SCNView?
     var scene: SCNScene?
     var appModel: AppModel?
@@ -530,6 +530,6 @@ final class Coordinator: NSObject {
     }
 }
 
-extension Coordinator: SCNSceneRendererDelegate {
+extension VaseSceneCoordinator: SCNSceneRendererDelegate {
     nonisolated func renderer(_ renderer: any SCNSceneRenderer, updateAtTime time: TimeInterval) {}
 }

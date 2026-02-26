@@ -116,7 +116,7 @@ struct ShareView: View {
             key.eulerAngles = SCNVector3(-Float.pi / 4, Float.pi / 6, 0)
             scene.rootNode.addChildNode(key)
 
-            let coord = Coordinator()
+            let coord = VaseSceneCoordinator()
             coord.scene = scene
             coord.scnView = tempView
             let geo = coord.makeVaseGeometry()
@@ -205,7 +205,7 @@ struct RotatingVaseView: UIViewRepresentable {
         key.eulerAngles = SCNVector3(-Float.pi / 4, Float.pi / 6, 0)
         scene.rootNode.addChildNode(key)
 
-        let coord = Coordinator()
+        let coord = VaseSceneCoordinator()
         coord.scene = scene
         coord.scnView = scnView
         let geo = coord.makeVaseGeometry()
