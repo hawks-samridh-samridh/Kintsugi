@@ -1,0 +1,95 @@
+name: Kintsugi Screenshots
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  screenshot:
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 16
+        run: |
+          sudo xcode-select -s $(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)/Contents/Developer
+          xcodebuild -version
+
+      - name: List available simulators
+        run: xcrun simctl list devices available | grep -E "iPhone 1[5-9]|iPhone 16"
+
+      - name: Boot simulator
+        run: |
+          # prefer iPhone 16 Pro, fall back to whatever iPhone is available
+          UDID=$(xcrun simctl create "KintsugiTest" "iPhone 16 Pro" \
+            $(xcrun simctl list runtimes | grep "iOS 18" | tail -1 | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.iOS[^ ]+') \
+            2>/dev/null) \
+          || UDID=$(xcrun simctl list devices available -j \
+            | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)['devices']
+          phones = [v for vals in d.values() for v in vals
+                    if 'iPhone' in v['name'] and v['isAvailable']]
+          print(phones[0]['udid'])
+          ")
+          echo "UDID=$UDID" >> $GITHUB_ENV
+          xcrun simctl boot "$UDID" || true
+          # give the simulator window time to come up
+          sleep 8
+
+      - name: Build for simulator
+        run: |
+          cd Kintsugi.swiftpm
+          set -o pipefail
+          xcodebuild build \
+            -scheme Kintsugi \
+            -destination "id=${{ env.UDID }}" \
+            -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            2>&1 | tee /tmp/xcodebuild.log | grep -E "error:|Build succeeded|Build FAILED|\.swift:[0-9]" || true
+          grep -q "Build FAILED" /tmp/xcodebuild.log && exit 1 || true
+
+      - name: Install app on simulator
+        run: |
+          APP=$(find DerivedData -name "Kintsugi.app" \
+            -not -path "*/SourcePackages/*" \
+            -not -path "*/Index.noindex/*" \
+            | head -1)
+          echo "Found app: $APP"
+          xcrun simctl install "${{ env.UDID }}" "$APP"
+          BUNDLE_ID=$(defaults read "$APP/Info.plist" CFBundleIdentifier)
+          echo "BUNDLE_ID=$BUNDLE_ID" >> $GITHUB_ENV
+
+      - name: Launch app
+        run: |
+          xcrun simctl launch "${{ env.UDID }}" "${{ env.BUNDLE_ID }}"
+          mkdir -p screenshots
+
+      # vase fades in at 0.2s, fully visible at ~1s before shatter
+      - name: Screenshot 01 — vase intact
+        run: |
+          sleep 0.7
+          xcrun simctl io "${{ env.UDID }}" screenshot screenshots/01-vase-intact.png
+
+      # shatter triggers at 1s, fragments flying at ~1.5s
+      - name: Screenshot 02 — shatter
+        run: |
+          sleep 1.0
+          xcrun simctl io "${{ env.UDID }}" screenshot screenshots/02-shatter.png
+
+      # fragments settled, repair overlay visible at ~5s
+      - name: Screenshot 03 — repair stage
+        run: |
+          sleep 3.5
+          xcrun simctl io "${{ env.UDID }}" screenshot screenshots/03-repair-overlay.png
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: kintsugi-screenshots
+          path: screenshots/
+          retention-days: 30
