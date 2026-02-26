@@ -1,0 +1,36 @@
+Kintsugi
+Swift Student Challenge 2026
+
+---
+
+CONCEPT & INSPIRATION
+
+Kintsugi (金継ぎ, "golden joinery") is the Japanese art of repairing broken pottery with gold lacquer. The philosophy holds that breakage and repair are part of the history of an object, not something to conceal. This app takes that philosophy and applies it to personal resilience — the idea that what breaks us also makes us more beautiful.
+
+---
+
+TECHNICAL
+
+All geometry, physics, particle systems, and animations are generated procedurally in Swift/SceneKit.
+No external assets, models, or third-party libraries were used.
+No network calls are made.
+
+---
+
+AI TOOL DISCLOSURE
+
+This app was designed and implemented with assistance from Claude (Anthropic), an AI assistant.
+Claude contributed to: architecture planning, Swift/SwiftUI/SceneKit code generation, and accessibility implementation.
+All content, creative direction, and final decisions were made by the developer.
+
+Apple's Swift Student Challenge requires disclosure of AI tool usage. This submission was created using Claude Code (claude-sonnet-4-6) as part of the development workflow.
+
+---
+
+REFLECTION QUOTES
+
+The six reflections presented in the experience are original to this project.
+
+---
+
+© 2026 — Swift Student Challenge Submission
