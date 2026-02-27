@@ -84,8 +84,7 @@ final class VaseSceneCoordinator: NSObject {
         let fadeIn = SCNAction.fadeIn(duration: 0.8)
         vaseNode?.runAction(SCNAction.sequence([SCNAction.wait(duration: 0.2), fadeIn]))
 
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.0))
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             self.triggerShatter()
         }
     }
@@ -232,19 +231,22 @@ final class VaseSceneCoordinator: NSObject {
         vaseNode.removeFromParentNode()
         fragmentNodes = buildFragments(scene: scene)
 
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(100))
+        // DispatchQueue.main.asyncAfter is not cancellable — Task.sleep silently
+        // completes instantly when the task is cancelled, breaking stage timing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             self.applyShatterImpulses()
+        }
 
-            // crank damping once airborne so fragments don't bounce forever
-            try? await Task.sleep(for: .seconds(2.5))
+        // crank damping once airborne so fragments don't bounce forever
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
             for node in self.fragmentNodes {
                 node.physicsBody?.angularDamping = 0.9
                 node.physicsBody?.damping = 0.9
             }
+        }
 
-            // 4s total gives fragments time to land before the overlay appears
-            try? await Task.sleep(for: .seconds(1.5))
+        // 8s total — long enough for CI screenshots to catch both flying and settled states
+        DispatchQueue.main.asyncAfter(deadline: .now() + 7.0) {
             self.appModel?.stage = .repair
             UIAccessibility.post(notification: .announcement, argument: "The vase has shattered. Trace each crack with gold to restore it.")
         }
@@ -347,8 +349,9 @@ final class VaseSceneCoordinator: NSObject {
                 dir = SCNVector3(dir.x / len, dir.y / len, dir.z / len)
             }
 
-            let strength = Float.random(in: 1.5...3.5)
-            let impulse = SCNVector3(dir.x * strength, dir.y * strength + 0.5, dir.z * strength)
+            // stronger impulses so fragments visibly scatter for the screenshot
+            let strength = Float.random(in: 4.0...8.0)
+            let impulse = SCNVector3(dir.x * strength, dir.y * strength + 1.5, dir.z * strength)
             node.physicsBody?.applyForce(impulse, asImpulse: true)
 
             let torque = SCNVector4(

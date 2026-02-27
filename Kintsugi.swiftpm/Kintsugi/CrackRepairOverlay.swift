@@ -131,9 +131,9 @@ struct CrackRepairOverlay: View {
                 path.addLine(to: pts[i])
             }
 
-            // faint guide so users know where to trace without making it trivial
+            // visible guide lines so the repair stage is clearly distinct in screenshots
             if !isRepaired {
-                ctx.stroke(path, with: .color(.white.opacity(0.3)), lineWidth: 1.5)
+                ctx.stroke(path, with: .color(.white.opacity(0.6)), lineWidth: 2.5)
             }
 
             // proximity affordance pulls the finger onto the crack
