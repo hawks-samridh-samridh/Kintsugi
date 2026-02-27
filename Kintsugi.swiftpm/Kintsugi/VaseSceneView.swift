@@ -89,11 +89,11 @@ final class VaseSceneCoordinator: NSObject {
         vaseNode?.runAction(SCNAction.sequence([SCNAction.wait(duration: 0.2), fadeIn]))
 
         // SCNAction.wait advances with scene render time — immune to main queue backlog
-        // DispatchQueue timers fire in burst when main thread is busy during startup
-        // 25s gives CI enough margin: install+launch overhead is ~3-5s, so shatter fires
-        // at CI t≈20-22s — well after shot01 (t≈12s) and right before shot02 (t≈22s)
+        // CI evidence: overhead between xcrun simctl launch return and first render ≈ 14s
+        // (shatter fired at CI t≈11s with wait(25s), confirming scene ran ~14s before launch returned)
+        // wait(50s): shatter fires at CI t≈36s — well after shot01 (CI t≈15s)
         let shatterTrigger = SCNAction.sequence([
-            SCNAction.wait(duration: 25.0),
+            SCNAction.wait(duration: 50.0),
             SCNAction.customAction(duration: 0) { [weak self] _, _ in
                 DispatchQueue.main.async { self?.triggerShatter() }
             }
