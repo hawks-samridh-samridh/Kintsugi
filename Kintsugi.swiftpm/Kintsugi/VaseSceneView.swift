@@ -247,7 +247,6 @@ final class VaseSceneCoordinator: NSObject {
         }
 
         // use SCNAction for all subsequent stage timing — scene-clock based, not main queue
-        guard let scene else { return }
         let timerNode = SCNNode()
         scene.rootNode.addChildNode(timerNode)
 
