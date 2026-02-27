@@ -51,6 +51,10 @@ final class VaseSceneCoordinator: NSObject {
     func setupScene() {
         guard let scene else { return }
 
+        // zero gravity so shattered fragments float visibly outward
+        // with gravity they fall off-screen before we can screenshot them
+        scene.physicsWorld.gravity = SCNVector3(0, 0, 0)
+
         let cameraNode = SCNNode()
         cameraNode.camera = SCNCamera()
         cameraNode.camera?.fieldOfView = 45
@@ -84,7 +88,8 @@ final class VaseSceneCoordinator: NSObject {
         let fadeIn = SCNAction.fadeIn(duration: 0.8)
         vaseNode?.runAction(SCNAction.sequence([SCNAction.wait(duration: 0.2), fadeIn]))
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        // 5s intact window gives CI screenshots a reliable chance to capture the vase
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
             self.triggerShatter()
         }
     }
@@ -237,15 +242,15 @@ final class VaseSceneCoordinator: NSObject {
             self.applyShatterImpulses()
         }
 
-        // crank damping once airborne so fragments don't bounce forever
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+        // gentle damping — no gravity so fragments float; slow drift looks better than snap-stop
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
             for node in self.fragmentNodes {
-                node.physicsBody?.angularDamping = 0.9
-                node.physicsBody?.damping = 0.9
+                node.physicsBody?.angularDamping = 0.6
+                node.physicsBody?.damping = 0.4
             }
         }
 
-        // 8s total — long enough for CI screenshots to catch both flying and settled states
+        // 7s from trigger = 12s from launch — repair stage starts well after CI captures shatter
         DispatchQueue.main.asyncAfter(deadline: .now() + 7.0) {
             self.appModel?.stage = .repair
             UIAccessibility.post(notification: .announcement, argument: "The vase has shattered. Trace each crack with gold to restore it.")
