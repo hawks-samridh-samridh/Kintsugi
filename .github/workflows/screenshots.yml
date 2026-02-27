@@ -17,14 +17,11 @@ jobs:
           sudo xcode-select -s $(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)/Contents/Developer
           xcodebuild -version
 
-      - name: List available simulators
-        run: xcrun simctl list devices available | grep -E "iPhone 1[5-9]|iPhone 16"
-
       - name: Boot simulator
         run: |
-          # prefer iPhone 16 Pro, fall back to whatever iPhone is available
           UDID=$(xcrun simctl create "KintsugiTest" "iPhone 16 Pro" \
-            $(xcrun simctl list runtimes | grep "iOS 18" | tail -1 | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.iOS[^ ]+') \
+            $(xcrun simctl list runtimes | grep "iOS 18" | tail -1 \
+              | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.iOS[^ ]+') \
             2>/dev/null) \
           || UDID=$(xcrun simctl list devices available -j \
             | python3 -c "
@@ -36,7 +33,6 @@ jobs:
           ")
           echo "UDID=$UDID" >> $GITHUB_ENV
           xcrun simctl boot "$UDID" || true
-          # give the simulator window time to come up
           sleep 8
 
       - name: Build for simulator
@@ -49,49 +45,85 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
-            2>&1 | tee /tmp/xcodebuild.log
-          # fail fast if xcodebuild failed
-          grep -q "BUILD FAILED\|Build FAILED" /tmp/xcodebuild.log && exit 1 || true
+            2>&1 | tee /tmp/build.log | grep -E "error:|BUILD FAILED|BUILD SUCCEEDED|\.swift:[0-9]" || true
+          # propagate failure
+          tail -5 /tmp/build.log
+          grep -q "BUILD FAILED" /tmp/build.log && exit 1 || true
 
-      - name: Find built app
+      - name: Wrap binary into .app bundle
         run: |
-          echo "=== DerivedData products ==="
-          find DerivedData/Build/Products -maxdepth 3 2>/dev/null || echo "(no DerivedData/Build/Products)"
-          echo "=== All .app bundles ==="
-          find DerivedData -name "*.app" 2>/dev/null || echo "none"
-          APP=$(find DerivedData -name "*.app" -not -path "*/SourcePackages/*" | head -1)
-          echo "APP=$APP"
+          # SPM executable builds a bare binary — wrap it in the bundle structure simctl needs
+          PRODUCTS="DerivedData/Build/Products/Debug-iphonesimulator"
+          BINARY="$PRODUCTS/Kintsugi"
+          APP="/tmp/Kintsugi.app"
+
+          mkdir -p "$APP"
+          cp "$BINARY" "$APP/Kintsugi"
+
+          # copy any swift package framework dependencies
+          if [ -d "$PRODUCTS/PackageFrameworks" ]; then
+            mkdir -p "$APP/Frameworks"
+            cp -R "$PRODUCTS/PackageFrameworks/"* "$APP/Frameworks/" 2>/dev/null || true
+          fi
+
+          # minimal Info.plist so simctl knows it's an iOS app
+          cat > "$APP/Info.plist" << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>Kintsugi</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.kintsugi.app</string>
+              <key>CFBundleName</key>
+              <string>Kintsugi</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>DTPlatformName</key>
+              <string>iphonesimulator</string>
+              <key>UILaunchScreen</key>
+              <dict/>
+              <key>UIApplicationSceneManifest</key>
+              <dict>
+                  <key>UIApplicationSupportsMultipleScenes</key>
+                  <false/>
+              </dict>
+          </dict>
+          </plist>
+          PLIST
+
+          # ad-hoc sign so the simulator accepts it
+          codesign --force -s - "$APP"
           echo "APP=$APP" >> $GITHUB_ENV
-          BUNDLE_ID=$(defaults read "$APP/Info.plist" CFBundleIdentifier 2>/dev/null || echo "")
-          echo "BUNDLE_ID=$BUNDLE_ID"
-          echo "BUNDLE_ID=$BUNDLE_ID" >> $GITHUB_ENV
+          echo "Wrapped: $(ls -la $APP)"
 
-      - name: Install app on simulator
+      - name: Install and launch
         run: |
-          echo "Installing ${{ env.APP }}"
           xcrun simctl install "${{ env.UDID }}" "${{ env.APP }}"
-
-      - name: Launch app
-        run: |
-          xcrun simctl launch "${{ env.UDID }}" "${{ env.BUNDLE_ID }}"
+          xcrun simctl launch "${{ env.UDID }}" com.kintsugi.app
           mkdir -p screenshots
 
-      # vase fades in at 0.2s, fully visible at ~1s before shatter
+      # vase is visible at ~0.7s, shatter fires at 1s
       - name: Screenshot 01 — vase intact
         run: |
           sleep 0.7
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/01-vase-intact.png
 
-      # shatter triggers at 1s, fragments flying at ~1.5s
+      # fragments flying at ~1.5–2s
       - name: Screenshot 02 — shatter
         run: |
           sleep 1.0
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/02-shatter.png
 
-      # fragments settled, repair overlay visible at ~5s
+      # repair overlay appears at ~4s, fragments settled
       - name: Screenshot 03 — repair stage
         run: |
-          sleep 3.5
+          sleep 3.0
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/03-repair-overlay.png
 
       - name: Upload screenshots
