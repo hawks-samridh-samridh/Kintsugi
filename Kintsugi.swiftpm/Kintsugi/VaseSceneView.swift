@@ -257,17 +257,20 @@ final class VaseSceneCoordinator: NSObject {
             SCNAction.wait(duration: 12.0),
             // settle fragments back to origin so repair overlay has a vase to sit on
             SCNAction.customAction(duration: 0) { [weak self] _, _ in
-                guard let self else { return }
-                for node in self.fragmentNodes {
-                    node.removeAllActions()
-                    let settle = SCNAction.move(to: SCNVector3(0, 0, 0), duration: 1.5)
-                    settle.timingMode = .easeInEaseOut
-                    let resetRot = SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 1.5)
-                    resetRot.timingMode = .easeInEaseOut
-                    node.runAction(SCNAction.group([settle, resetRot]))
+                // must dispatch to main — fragmentNodes is @MainActor-isolated
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    for node in self.fragmentNodes {
+                        node.removeAllActions()
+                        let settle = SCNAction.move(to: SCNVector3(0, 0, 0), duration: 2.0)
+                        settle.timingMode = .easeInEaseOut
+                        let resetRot = SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 2.0)
+                        resetRot.timingMode = .easeInEaseOut
+                        node.runAction(SCNAction.group([settle, resetRot]))
+                    }
                 }
             },
-            SCNAction.wait(duration: 2.0),  // settle completes
+            SCNAction.wait(duration: 3.0),  // settle completes (2s) + 1s buffer
             SCNAction.customAction(duration: 0) { [weak self] _, _ in
                 DispatchQueue.main.async {
                     self?.appModel?.stage = .repair
