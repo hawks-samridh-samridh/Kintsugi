@@ -236,13 +236,24 @@ final class VaseSceneCoordinator: NSObject {
         vaseNode.removeFromParentNode()
         fragmentNodes = buildFragments(scene: scene)
 
-        // DispatchQueue.main.asyncAfter is not cancellable — Task.sleep silently
-        // completes instantly when the task is cancelled, breaking stage timing
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             self.applyShatterImpulses()
         }
 
-        // 7s from trigger = 12s from launch — repair stage starts well after CI captures shatter
+        // fragments settle back to assembled positions before crack overlay appears
+        // this way repair stage shows intact-looking vase with cracks on top — cleaner UI
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+            for node in self.fragmentNodes {
+                node.removeAllActions()
+                let settle = SCNAction.move(to: SCNVector3(0, 0, 0), duration: 1.5)
+                settle.timingMode = .easeInEaseOut
+                let resetRot = SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 1.5)
+                resetRot.timingMode = .easeInEaseOut
+                node.runAction(SCNAction.group([settle, resetRot]))
+            }
+        }
+
+        // repair stage starts after settle completes (5 + 1.5 + 0.5 buffer = 7s)
         DispatchQueue.main.asyncAfter(deadline: .now() + 7.0) {
             self.appModel?.stage = .repair
             UIAccessibility.post(notification: .announcement, argument: "The vase has shattered. Trace each crack with gold to restore it.")
@@ -332,24 +343,23 @@ final class VaseSceneCoordinator: NSObject {
         for node in fragmentNodes {
             let pos = node.position
 
-            // radial direction outward from vase center, with slight upward bias
-            var dx = pos.x + Float.random(in: -0.3...0.3)
-            var dy = pos.y + 0.4 + Float.random(in: -0.2...0.4)
-            var dz = pos.z + Float.random(in: -0.3...0.3)
+            // purely radial outward from vase center — no upward bias so spread is uniform
+            var dx = pos.x + Float.random(in: -0.15...0.15)
+            var dy = pos.y + Float.random(in: -0.15...0.15)
+            var dz = pos.z + Float.random(in: -0.05...0.05)
             let len = sqrt(dx*dx + dy*dy + dz*dz)
-            if len > 0 { dx /= len; dy /= len; dz /= len }
+            if len > 0.001 { dx /= len; dy /= len; dz /= len }
 
-            // short scatter keeps fragments in the camera frame — looks like an exploded vase
-            let dist = Float.random(in: 0.5...1.2)
+            let dist = Float.random(in: 0.7...1.4)
             let target = SCNVector3(pos.x + dx*dist, pos.y + dy*dist, pos.z + dz*dist)
 
-            let flyOut = SCNAction.move(to: target, duration: Double.random(in: 0.6...1.2))
+            let flyOut = SCNAction.move(to: target, duration: Double.random(in: 0.5...0.9))
             flyOut.timingMode = .easeOut
 
-            // tumble so fragments look like physical pieces
-            let axis = SCNVector3(Float.random(in: -1...1), Float.random(in: -1...1), Float.random(in: -1...1))
-            let angle = CGFloat.random(in: .pi/3 ... .pi * 2)
-            let tumble = SCNAction.rotate(by: angle, around: axis, duration: Double.random(in: 0.6...1.2))
+            // small rotation only — keeps fragment faces visible to camera
+            let axis = SCNVector3(0, 0, 1)
+            let angle = CGFloat.random(in: -.pi/5 ... .pi/5)
+            let tumble = SCNAction.rotate(by: angle, around: axis, duration: Double.random(in: 0.5...0.9))
             tumble.timingMode = .easeOut
 
             node.runAction(SCNAction.group([flyOut, tumble]))

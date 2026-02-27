@@ -116,19 +116,22 @@ jobs:
       # app: t=0 vase visible, t=10s shatter fires, t=17s stage→repair
       # ci overhead (install+launch→app rendered) ≈ 2-3s before screenshot steps begin
 
-      # t≈7s — intact vase (shatter fires at t=10s, 3s safety margin)
+      # app: t=0 vase, t=10s shatter+scatter(0.9s), t=15s settle(1.5s), t=17s repair
+      # ci overhead ≈ 2s between launch and app rendering first frame
+
+      # t≈7s — intact vase, 3s before shatter fires at t=10s
       - name: Screenshot 01 — vase intact
         run: |
           sleep 5
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/01-vase-intact.png
 
-      # t≈14s — fragments scattered (shatter at t=10s, 4s of drift, still in frame)
+      # t≈12s — fragments at max scatter (scatter done at t=10.9s, settle starts t=15s)
       - name: Screenshot 02 — shatter
         run: |
-          sleep 7
+          sleep 5
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/02-shatter.png
 
-      # t≈34s — repair stage established (starts at t=17s, 17s into repair)
+      # t≈32s — repair stage, vase reassembled + crack overlay (repair started t=17s)
       - name: Screenshot 03 — repair stage
         run: |
           sleep 20
