@@ -84,21 +84,33 @@ final class VaseSceneCoordinator: NSObject {
 
         buildVase()
 
-        vaseNode?.opacity = 0
-        let fadeIn = SCNAction.fadeIn(duration: 0.8)
-        vaseNode?.runAction(SCNAction.sequence([SCNAction.wait(duration: 0.2), fadeIn]))
+        switch appModel?.screenshotMode {
+        case .intact:
+            // CI: show intact vase immediately, no auto-shatter
+            vaseNode?.opacity = 1
+        case .shatter:
+            // CI: scatter fragments immediately after first frame renders
+            vaseNode?.opacity = 0
+            DispatchQueue.main.async { self.setupShatterImmediately() }
+        case .repair:
+            // CI: show reassembled vase + crack overlay
+            vaseNode?.opacity = 1
+            DispatchQueue.main.async { self.appModel?.stage = .repair }
+        case nil:
+            // Normal experience
+            vaseNode?.opacity = 0
+            let fadeIn = SCNAction.fadeIn(duration: 0.8)
+            vaseNode?.runAction(SCNAction.sequence([SCNAction.wait(duration: 0.2), fadeIn]))
 
-        // SCNAction.wait advances with scene render time — immune to main queue backlog
-        // CI evidence: overhead between xcrun simctl launch return and first render ≈ 14s
-        // (shatter fired at CI t≈11s with wait(25s), confirming scene ran ~14s before launch returned)
-        // wait(50s): shatter fires at CI t≈36s — well after shot01 (CI t≈15s)
-        let shatterTrigger = SCNAction.sequence([
-            SCNAction.wait(duration: 50.0),
-            SCNAction.customAction(duration: 0) { [weak self] _, _ in
-                DispatchQueue.main.async { self?.triggerShatter() }
-            }
-        ])
-        vaseNode?.runAction(shatterTrigger, forKey: "shatterTrigger")
+            // SCNAction.wait advances with scene render time
+            let shatterTrigger = SCNAction.sequence([
+                SCNAction.wait(duration: 50.0),
+                SCNAction.customAction(duration: 0) { [weak self] _, _ in
+                    DispatchQueue.main.async { self?.triggerShatter() }
+                }
+            ])
+            vaseNode?.runAction(shatterTrigger, forKey: "shatterTrigger")
+        }
     }
 
     // MARK: - Vase Geometry
@@ -280,6 +292,27 @@ final class VaseSceneCoordinator: NSObject {
             SCNAction.removeFromParentNode()
         ])
         timerNode.runAction(sequenceActions)
+    }
+
+    // CI screenshot mode: shatter immediately with no animation delay
+    func setupShatterImmediately() {
+        guard let scene, let vaseNode, !isShattered else { return }
+        isShattered = true
+        vaseNode.removeFromParentNode()
+        fragmentNodes = buildFragments(scene: scene)
+        // move fragments instantly to scattered positions
+        for node in fragmentNodes {
+            let pos = node.position
+            var dx = pos.x + Float.random(in: -0.15...0.15)
+            var dy = pos.y + Float.random(in: -0.15...0.15)
+            var dz = pos.z + Float.random(in: -0.05...0.05)
+            let len = sqrt(dx*dx + dy*dy + dz*dz)
+            if len > 0.001 { dx /= len; dy /= len; dz /= len }
+            let dist = Float.random(in: 0.7...1.3)
+            node.position = SCNVector3(pos.x + dx*dist, pos.y + dy*dist, pos.z + dz*dist)
+            let angle = Float.random(in: -.pi/5 ... .pi/5)
+            node.eulerAngles = SCNVector3(0, 0, angle)
+        }
     }
 
     func buildFragments(scene: SCNScene) -> [SCNNode] {
