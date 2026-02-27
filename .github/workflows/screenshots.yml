@@ -119,22 +119,26 @@ jobs:
       # app: t=0 vase, t=10s shatter+scatter(0.9s), t=15s settle(1.5s), t=17s repair
       # ci overhead ≈ 2s between launch and app rendering first frame
 
-      # t≈7s — intact vase, 3s before shatter fires at t=10s
+      # SCNAction timer: scene-clock based — advances with rendered frames, not main queue
+      # t=0 vase fades in, t=10s shatter+scatter(0.9s), t=15s settle(1.5s), t=17s repair
+      # ci: xcrun simctl launch returns ~0-1s before app renders first frame
+
+      # t≈7s — intact vase (shatter at t=10s, 3s margin)
       - name: Screenshot 01 — vase intact
         run: |
-          sleep 5
+          sleep 7
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/01-vase-intact.png
 
-      # t≈12s — fragments at max scatter (scatter done at t=10.9s, settle starts t=15s)
+      # t≈13s — fragments fully scattered (scatter 0.9s done at t=10.9s, settle at t=15s)
       - name: Screenshot 02 — shatter
         run: |
-          sleep 5
+          sleep 6
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/02-shatter.png
 
-      # t≈32s — repair stage, vase reassembled + crack overlay (repair started t=17s)
+      # t≈35s — repair stage, reassembled vase + crack overlay (repair at t=17s)
       - name: Screenshot 03 — repair stage
         run: |
-          sleep 20
+          sleep 22
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/03-repair-overlay.png
 
       - name: Upload screenshots

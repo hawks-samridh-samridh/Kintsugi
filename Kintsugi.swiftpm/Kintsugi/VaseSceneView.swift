@@ -88,10 +88,15 @@ final class VaseSceneCoordinator: NSObject {
         let fadeIn = SCNAction.fadeIn(duration: 0.8)
         vaseNode?.runAction(SCNAction.sequence([SCNAction.wait(duration: 0.2), fadeIn]))
 
-        // 10s intact window — long enough for CI to reliably capture the vase before shatter
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
-            self.triggerShatter()
-        }
+        // SCNAction.wait advances with scene render time — immune to main queue backlog
+        // DispatchQueue timers fire in burst when main thread is busy during startup
+        let shatterTrigger = SCNAction.sequence([
+            SCNAction.wait(duration: 10.0),
+            SCNAction.customAction(duration: 0) { [weak self] _, _ in
+                DispatchQueue.main.async { self?.triggerShatter() }
+            }
+        ])
+        vaseNode?.runAction(shatterTrigger, forKey: "shatterTrigger")
     }
 
     // MARK: - Vase Geometry
@@ -236,28 +241,41 @@ final class VaseSceneCoordinator: NSObject {
         vaseNode.removeFromParentNode()
         fragmentNodes = buildFragments(scene: scene)
 
+        // scatter immediately (0.1s so first frame with fragments renders before they move)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             self.applyShatterImpulses()
         }
 
-        // fragments settle back to assembled positions before crack overlay appears
-        // this way repair stage shows intact-looking vase with cracks on top — cleaner UI
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
-            for node in self.fragmentNodes {
-                node.removeAllActions()
-                let settle = SCNAction.move(to: SCNVector3(0, 0, 0), duration: 1.5)
-                settle.timingMode = .easeInEaseOut
-                let resetRot = SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 1.5)
-                resetRot.timingMode = .easeInEaseOut
-                node.runAction(SCNAction.group([settle, resetRot]))
-            }
-        }
+        // use SCNAction for all subsequent stage timing — scene-clock based, not main queue
+        guard let scene else { return }
+        let timerNode = SCNNode()
+        scene.rootNode.addChildNode(timerNode)
 
-        // repair stage starts after settle completes (5 + 1.5 + 0.5 buffer = 7s)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 7.0) {
-            self.appModel?.stage = .repair
-            UIAccessibility.post(notification: .announcement, argument: "The vase has shattered. Trace each crack with gold to restore it.")
-        }
+        let sequenceActions = SCNAction.sequence([
+            // fragments scatter over 0.9s, then float for 4s
+            SCNAction.wait(duration: 5.0),
+            // settle fragments back to origin so repair overlay has a vase to sit on
+            SCNAction.customAction(duration: 0) { [weak self] _, _ in
+                guard let self else { return }
+                for node in self.fragmentNodes {
+                    node.removeAllActions()
+                    let settle = SCNAction.move(to: SCNVector3(0, 0, 0), duration: 1.5)
+                    settle.timingMode = .easeInEaseOut
+                    let resetRot = SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 1.5)
+                    resetRot.timingMode = .easeInEaseOut
+                    node.runAction(SCNAction.group([settle, resetRot]))
+                }
+            },
+            SCNAction.wait(duration: 2.0),  // settle completes
+            SCNAction.customAction(duration: 0) { [weak self] _, _ in
+                DispatchQueue.main.async {
+                    self?.appModel?.stage = .repair
+                    UIAccessibility.post(notification: .announcement, argument: "The vase has shattered. Trace each crack with gold to restore it.")
+                }
+            },
+            SCNAction.removeFromParentNode()
+        ])
+        timerNode.runAction(sequenceActions)
     }
 
     func buildFragments(scene: SCNScene) -> [SCNNode] {
