@@ -64,7 +64,7 @@ final class VaseSceneCoordinator: NSObject {
         let ambientLight = SCNNode()
         ambientLight.light = SCNLight()
         ambientLight.light?.type = .ambient
-        ambientLight.light?.color = UIColor(white: 0.3, alpha: 1)
+        ambientLight.light?.color = UIColor(white: 0.45, alpha: 1)
         scene.rootNode.addChildNode(ambientLight)
 
         let keyLight = SCNNode()
@@ -239,6 +239,8 @@ final class VaseSceneCoordinator: NSObject {
         mat.specular.contents = UIColor(white: 0.4, alpha: 1)
         mat.shininess = 60
         mat.isDoubleSided = true
+        // slight emission so inner faces (normally facing away from lights) aren't pitch black
+        mat.emission.contents = UIColor(red: 0.12, green: 0.11, blue: 0.10, alpha: 1)
         return mat
     }
 
