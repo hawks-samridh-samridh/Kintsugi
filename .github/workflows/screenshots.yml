@@ -113,22 +113,25 @@ jobs:
       # xcrun simctl launch returns quickly; app renders ~1-2s later
       # each CI step sleep is cumulative from when launch returned
 
-      # t≈3s — intact vase (shatter fires at t=5s, safe 2s margin)
+      # app: t=0 vase visible, t=10s shatter fires, t=17s stage→repair
+      # ci overhead (install+launch→app rendered) ≈ 2-3s before screenshot steps begin
+
+      # t≈7s — intact vase (shatter fires at t=10s, 3s safety margin)
       - name: Screenshot 01 — vase intact
         run: |
-          sleep 3
+          sleep 5
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/01-vase-intact.png
 
-      # t≈8s — fragments floating outward (impulses at t=5.1s, 3s of drift)
+      # t≈14s — fragments scattered (shatter at t=10s, 4s of drift, still in frame)
       - name: Screenshot 02 — shatter
         run: |
-          sleep 5
+          sleep 7
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/02-shatter.png
 
-      # t≈23s — repair stage well established (stage starts at t=12s)
+      # t≈34s — repair stage established (starts at t=17s, 17s into repair)
       - name: Screenshot 03 — repair stage
         run: |
-          sleep 15
+          sleep 20
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/03-repair-overlay.png
 
       - name: Upload screenshots

@@ -88,8 +88,8 @@ final class VaseSceneCoordinator: NSObject {
         let fadeIn = SCNAction.fadeIn(duration: 0.8)
         vaseNode?.runAction(SCNAction.sequence([SCNAction.wait(duration: 0.2), fadeIn]))
 
-        // 5s intact window gives CI screenshots a reliable chance to capture the vase
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+        // 10s intact window — long enough for CI to reliably capture the vase before shatter
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
             self.triggerShatter()
         }
     }
@@ -339,7 +339,8 @@ final class VaseSceneCoordinator: NSObject {
             let len = sqrt(dx*dx + dy*dy + dz*dz)
             if len > 0 { dx /= len; dy /= len; dz /= len }
 
-            let dist = Float.random(in: 2.0...4.5)
+            // short scatter keeps fragments in the camera frame — looks like an exploded vase
+            let dist = Float.random(in: 0.5...1.2)
             let target = SCNVector3(pos.x + dx*dist, pos.y + dy*dist, pos.z + dz*dist)
 
             let flyOut = SCNAction.move(to: target, duration: Double.random(in: 0.6...1.2))
