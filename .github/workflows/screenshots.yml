@@ -107,24 +107,24 @@ jobs:
           xcrun simctl install "${{ env.UDID }}" "${{ env.APP }}"
           xcrun simctl launch "${{ env.UDID }}" com.kintsugi.app
           mkdir -p screenshots
-          # wait for app to fully start rendering before first screenshot
-          sleep 3
 
-      # at ~3s after launch cmd the app has loaded — vase visible, shatter just fired
+      # grab vase intact immediately — app has been running since install+launch above
+      # install takes ~5-10s so by the time this step runs the app has just started
       - name: Screenshot 01 — vase intact
         run: |
+          sleep 1
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/01-vase-intact.png
 
-      # at ~5s total — fragments mid-air
+      # shatter fires at ~1s after first render, settles over next 3s — catch mid-air at +2s
       - name: Screenshot 02 — shatter
         run: |
           sleep 2
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/02-shatter.png
 
-      # at ~10s total — repair stage with crack overlay
+      # repair stage starts at ~5s after first render — wait generously for gold overlay
       - name: Screenshot 03 — repair stage
         run: |
-          sleep 5
+          sleep 8
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/03-repair-overlay.png
 
       - name: Upload screenshots
