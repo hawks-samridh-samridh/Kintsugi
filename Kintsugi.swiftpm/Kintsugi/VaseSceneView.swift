@@ -253,8 +253,8 @@ final class VaseSceneCoordinator: NSObject {
         scene.rootNode.addChildNode(timerNode)
 
         let sequenceActions = SCNAction.sequence([
-            // fragments scatter over 0.9s, then float for 4s
-            SCNAction.wait(duration: 5.0),
+            // fragments scatter over 0.9s, then float for 12s (wide window for CI screenshot)
+            SCNAction.wait(duration: 12.0),
             // settle fragments back to origin so repair overlay has a vase to sit on
             SCNAction.customAction(duration: 0) { [weak self] _, _ in
                 guard let self else { return }
