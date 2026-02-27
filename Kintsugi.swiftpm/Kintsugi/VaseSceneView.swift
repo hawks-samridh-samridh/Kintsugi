@@ -82,6 +82,15 @@ final class VaseSceneCoordinator: NSObject {
         fillLight.eulerAngles = SCNVector3(Float.pi / 6, -Float.pi / 4, 0)
         scene.rootNode.addChildNode(fillLight)
 
+        // Back-fill light: illuminates fragment inner faces during shatter so they
+        // appear as warm dark ceramic rather than black. Minimal impact on intact vase.
+        let backLight = SCNNode()
+        backLight.light = SCNLight()
+        backLight.light?.type = .directional
+        backLight.light?.color = UIColor(white: 0.35, alpha: 1)
+        backLight.eulerAngles = SCNVector3(0, Float.pi, 0)  // from behind, facing -z
+        scene.rootNode.addChildNode(backLight)
+
         buildVase()
 
         switch appModel?.screenshotMode {
@@ -304,14 +313,18 @@ final class VaseSceneCoordinator: NSObject {
         fragmentNodes = buildFragments(scene: scene)
         let count = max(1, fragmentNodes.count)
         for (i, node) in fragmentNodes.enumerated() {
-            // evenly-spaced radial burst so fragments fill the screen like a star
+            // evenly-spaced radial burst covering the full portrait viewport
+            // viewport half-height ≈ 2.49 at z=0 (fov=45, camera z=6), half-width ≈ 1.14
+            // scale X by 0.8 and Y by 1.6 to match portrait aspect ratio
             let baseAngle = Float(i) * 2 * .pi / Float(count)
-            let angle = baseAngle + Float.random(in: -0.25...0.25)
-            let dist = Float.random(in: 0.75...1.25)
-            node.position = SCNVector3(cos(angle) * dist, sin(angle) * dist, Float.random(in: -0.1...0.1))
-            // small tilt for depth — keeps face mostly toward camera
-            node.eulerAngles = SCNVector3(Float.random(in: -.pi/8 ... .pi/8), 0,
-                                          Float.random(in: -.pi/8 ... .pi/8))
+            let angle = baseAngle + Float.random(in: -0.3...0.3)
+            let dist = Float.random(in: 0.8...1.4)
+            let x = cos(angle) * dist * 0.80
+            let y = sin(angle) * dist * 1.60
+            node.position = SCNVector3(x, y, Float.random(in: -0.15...0.15))
+            // moderate tilt to show some depth while keeping faces visible
+            node.eulerAngles = SCNVector3(Float.random(in: -.pi/7 ... .pi/7), 0,
+                                          Float.random(in: -.pi/7 ... .pi/7))
         }
     }
 
