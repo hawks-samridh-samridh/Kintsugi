@@ -242,14 +242,6 @@ final class VaseSceneCoordinator: NSObject {
             self.applyShatterImpulses()
         }
 
-        // gentle damping — no gravity so fragments float; slow drift looks better than snap-stop
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-            for node in self.fragmentNodes {
-                node.physicsBody?.angularDamping = 0.6
-                node.physicsBody?.damping = 0.4
-            }
-        }
-
         // 7s from trigger = 12s from launch — repair stage starts well after CI captures shatter
         DispatchQueue.main.asyncAfter(deadline: .now() + 7.0) {
             self.appModel?.stage = .repair
@@ -326,17 +318,8 @@ final class VaseSceneCoordinator: NSObject {
             let node = SCNNode(geometry: fragGeom)
             node.opacity = 1
             scene.rootNode.addChildNode(node)
-
-            originalTransforms.append(node.transform)
-
-            let physicsShape = SCNPhysicsShape(node: node, options: [.type: SCNPhysicsShape.ShapeType.convexHull])
-            let body = SCNPhysicsBody(type: .static, shape: physicsShape)
-            body.restitution = 0.3
-            body.friction = 0.5
-            body.damping = 0.3
-            body.angularDamping = 0.5
-            node.physicsBody = body
-
+            // no physics body — shatter uses SCNAction for guaranteed visual movement
+            // physics impulses are unreliable in the iOS Simulator
             result.append(node)
         }
 
@@ -344,34 +327,36 @@ final class VaseSceneCoordinator: NSObject {
     }
 
     func applyShatterImpulses() {
+        // SCNAction guarantees visual movement regardless of physics simulation quality in simulator
+        // physics impulses are unreliable in the iOS Simulator; SCNAction.move is deterministic
         for node in fragmentNodes {
-            node.physicsBody?.type = .dynamic
+            let pos = node.position
 
-            let pos = node.presentation.position
-            var dir = SCNVector3(pos.x, pos.y + 0.3, pos.z)
-            let len = sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z)
-            if len > 0 {
-                dir = SCNVector3(dir.x / len, dir.y / len, dir.z / len)
-            }
+            // radial direction outward from vase center, with slight upward bias
+            var dx = pos.x + Float.random(in: -0.3...0.3)
+            var dy = pos.y + 0.4 + Float.random(in: -0.2...0.4)
+            var dz = pos.z + Float.random(in: -0.3...0.3)
+            let len = sqrt(dx*dx + dy*dy + dz*dz)
+            if len > 0 { dx /= len; dy /= len; dz /= len }
 
-            // stronger impulses so fragments visibly scatter for the screenshot
-            let strength = Float.random(in: 4.0...8.0)
-            let impulse = SCNVector3(dir.x * strength, dir.y * strength + 1.5, dir.z * strength)
-            node.physicsBody?.applyForce(impulse, asImpulse: true)
+            let dist = Float.random(in: 2.0...4.5)
+            let target = SCNVector3(pos.x + dx*dist, pos.y + dy*dist, pos.z + dz*dist)
 
-            let torque = SCNVector4(
-                Float.random(in: -1...1),
-                Float.random(in: -1...1),
-                Float.random(in: -1...1),
-                Float.random(in: 0.5...1.5)
-            )
-            node.physicsBody?.applyTorque(torque, asImpulse: true)
+            let flyOut = SCNAction.move(to: target, duration: Double.random(in: 0.6...1.2))
+            flyOut.timingMode = .easeOut
 
-            // stagger so each fragment landing sounds individual rather than one clump
+            // tumble so fragments look like physical pieces
+            let axis = SCNVector3(Float.random(in: -1...1), Float.random(in: -1...1), Float.random(in: -1...1))
+            let angle = CGFloat.random(in: .pi/3 ... .pi * 2)
+            let tumble = SCNAction.rotate(by: angle, around: axis, duration: Double.random(in: 0.6...1.2))
+            tumble.timingMode = .easeOut
+
+            node.runAction(SCNAction.group([flyOut, tumble]))
+
+            // haptic stagger so each fragment sounds individual
             let delay = Double.random(in: 0.1...1.5)
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(delay))
-                await HapticsManager.shared.playFragmentLand(intensity: Float.random(in: 0.3...0.6))
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                Task { await HapticsManager.shared.playFragmentLand(intensity: Float.random(in: 0.3...0.6)) }
             }
         }
     }
@@ -384,9 +369,9 @@ final class VaseSceneCoordinator: NSObject {
         let reduceMotion = UIAccessibility.isReduceMotionEnabled
         let duration: TimeInterval = reduceMotion ? 0.3 : 2.0
 
-        // vertex positions encode world-space location so returning to origin = reassembly
+        // fragments were scattered by SCNAction so no physics type change needed
         for node in fragmentNodes {
-            node.physicsBody?.type = .kinematic
+            node.removeAllActions()
             let moveAction = SCNAction.move(to: SCNVector3(0, 0, 0), duration: duration)
             moveAction.timingMode = .easeInEaseOut
             let rotAction = SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: duration)
@@ -394,17 +379,16 @@ final class VaseSceneCoordinator: NSObject {
             node.runAction(SCNAction.group([moveAction, rotAction]))
         }
 
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(duration + 0.5))
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.5) {
             self.appModel?.isRevealing = true
-
-            try? await Task.sleep(for: .seconds(0.5))
-            self.fireRevealParticles()
-            await HapticsManager.shared.playRevealPeak()
-
-            try? await Task.sleep(for: .seconds(8.0))
-            self.appModel?.stage = .share
-            UIAccessibility.post(notification: .announcement, argument: "Your vase has been restored with gold, more beautiful than before.")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.fireRevealParticles()
+                Task { await HapticsManager.shared.playRevealPeak() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 8.0) {
+                    self.appModel?.stage = .share
+                    UIAccessibility.post(notification: .announcement, argument: "Your vase has been restored with gold, more beautiful than before.")
+                }
+            }
         }
     }
 
