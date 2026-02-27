@@ -238,7 +238,7 @@ final class VaseSceneCoordinator: NSObject {
         mat.diffuse.contents = UIColor(red: 0.82, green: 0.78, blue: 0.72, alpha: 1)
         mat.specular.contents = UIColor(white: 0.4, alpha: 1)
         mat.shininess = 60
-        mat.isDoubleSided = false
+        mat.isDoubleSided = true
         return mat
     }
 
@@ -294,24 +294,22 @@ final class VaseSceneCoordinator: NSObject {
         timerNode.runAction(sequenceActions)
     }
 
-    // CI screenshot mode: shatter immediately with no animation delay
+    // CI screenshot mode: shatter immediately — evenly-spaced radial burst for dramatic look
     func setupShatterImmediately() {
         guard let scene, let vaseNode, !isShattered else { return }
         isShattered = true
         vaseNode.removeFromParentNode()
         fragmentNodes = buildFragments(scene: scene)
-        // move fragments instantly to scattered positions
-        for node in fragmentNodes {
-            let pos = node.position
-            var dx = pos.x + Float.random(in: -0.15...0.15)
-            var dy = pos.y + Float.random(in: -0.15...0.15)
-            var dz = pos.z + Float.random(in: -0.05...0.05)
-            let len = sqrt(dx*dx + dy*dy + dz*dz)
-            if len > 0.001 { dx /= len; dy /= len; dz /= len }
-            let dist = Float.random(in: 0.7...1.3)
-            node.position = SCNVector3(pos.x + dx*dist, pos.y + dy*dist, pos.z + dz*dist)
-            let angle = Float.random(in: -.pi/5 ... .pi/5)
-            node.eulerAngles = SCNVector3(0, 0, angle)
+        let count = max(1, fragmentNodes.count)
+        for (i, node) in fragmentNodes.enumerated() {
+            // evenly-spaced radial burst so fragments fill the screen like a star
+            let baseAngle = Float(i) * 2 * .pi / Float(count)
+            let angle = baseAngle + Float.random(in: -0.25...0.25)
+            let dist = Float.random(in: 0.75...1.25)
+            node.position = SCNVector3(cos(angle) * dist, sin(angle) * dist, Float.random(in: -0.1...0.1))
+            // small tilt for depth — keeps face mostly toward camera
+            node.eulerAngles = SCNVector3(Float.random(in: -.pi/8 ... .pi/8), 0,
+                                          Float.random(in: -.pi/8 ... .pi/8))
         }
     }
 
