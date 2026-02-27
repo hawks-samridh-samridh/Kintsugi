@@ -108,37 +108,31 @@ jobs:
           xcrun simctl launch "${{ env.UDID }}" com.kintsugi.app
           mkdir -p screenshots
 
-      # app timeline: t=0 vase fades in, t=5s shatter fires (fragments float outward,
-      # zero gravity), t=12s stage→repair with crack overlay
-      # xcrun simctl launch returns quickly; app renders ~1-2s later
-      # each CI step sleep is cumulative from when launch returned
-
-      # app: t=0 vase visible, t=10s shatter fires, t=17s stage→repair
-      # ci overhead (install+launch→app rendered) ≈ 2-3s before screenshot steps begin
-
-      # app: t=0 vase, t=10s shatter+scatter(0.9s), t=15s settle(1.5s), t=17s repair
-      # ci overhead ≈ 2s between launch and app rendering first frame
-
       # SCNAction timer: scene-clock based — advances with rendered frames, not main queue
-      # t=0 vase fades in, t=10s shatter+scatter(0.9s), t=15s settle(1.5s), t=17s repair
-      # ci: xcrun simctl launch returns ~0-1s before app renders first frame
+      # App timeline (scene-clock): t=0 vase fades in, t=25s shatter fires,
+      #   t=25.9s scatter done, t=30.9s settle done, t=32.9s repair stage
+      # CI overhead: install+launch until xcrun simctl launch returns ≈ 3-5s, so
+      # "sleep 0" ≈ scene-clock t=3-5s. CI time = scene-clock - 3-5s overhead.
+      # shot01: CI+12s → scene ~t=15-17s (shatter at 25s, 8-10s margin) → intact ✓
+      # shot02: CI+10s → scene ~t=25-27s (shatter at 25s, scatter in progress) → fragments ✓
+      # shot03: CI+20s → scene ~t=45-47s (repair at 32.9s, 12-15s into repair) → overlay ✓
 
-      # t≈7s — intact vase (shatter at t=10s, 3s margin)
+      # t_CI≈12s — intact vase (shatter fires at CI t≈20-22s, 8-10s margin)
       - name: Screenshot 01 — vase intact
         run: |
-          sleep 7
+          sleep 12
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/01-vase-intact.png
 
-      # t≈13s — fragments fully scattered (scatter 0.9s done at t=10.9s, settle at t=15s)
+      # t_CI≈22s — fragments fully scattered (shatter at CI t≈20s, scatter done at ~21s)
       - name: Screenshot 02 — shatter
         run: |
-          sleep 6
+          sleep 10
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/02-shatter.png
 
-      # t≈35s — repair stage, reassembled vase + crack overlay (repair at t=17s)
+      # t_CI≈42s — repair stage, crack overlay visible (repair starts at CI t≈28s)
       - name: Screenshot 03 — repair stage
         run: |
-          sleep 22
+          sleep 20
           xcrun simctl io "${{ env.UDID }}" screenshot screenshots/03-repair-overlay.png
 
       - name: Upload screenshots
