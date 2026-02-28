@@ -27,7 +27,11 @@ final class AppModel {
     }()
 
     var stage: AppStage = .shatter
-    var repairedCracks: Set<Int> = []
+    // pre-filled for screenshot_repair mode so all cracks render as gold kintsugi seams
+    var repairedCracks: Set<Int> = {
+        let args = CommandLine.arguments
+        return args.contains("-screenshot_repair") ? Set(0..<6) : []
+    }()
     var isRevealing: Bool = false
     var userColorblindOverride: Bool = false
 

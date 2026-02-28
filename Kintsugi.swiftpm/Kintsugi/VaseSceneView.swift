@@ -313,24 +313,26 @@ final class VaseSceneCoordinator: NSObject {
         fragmentNodes = buildFragments(scene: scene)
         let count = max(1, fragmentNodes.count)
         for (i, node) in fragmentNodes.enumerated() {
-            // evenly-spaced radial burst covering the full portrait viewport
-            // viewport half-height ≈ 2.49 at z=0 (fov=45, camera z=6), half-width ≈ 1.14
-            // scale X by 0.8 and Y by 1.6 to match portrait aspect ratio
+            // evenly-spaced radial burst, scaled to portrait aspect ratio
+            // viewport: half-height ≈ 2.49, half-width ≈ 1.14 (fov=45, camera z=6)
             let baseAngle = Float(i) * 2 * .pi / Float(count)
             let angle = baseAngle + Float.random(in: -0.3...0.3)
-            let dist = Float.random(in: 0.8...1.4)
-            let x = cos(angle) * dist * 0.80
-            let y = sin(angle) * dist * 1.60
-            node.position = SCNVector3(x, y, Float.random(in: -0.15...0.15))
-            // moderate tilt to show some depth while keeping faces visible
-            node.eulerAngles = SCNVector3(Float.random(in: -.pi/7 ... .pi/7), 0,
-                                          Float.random(in: -.pi/7 ... .pi/7))
+            let dist = Float.random(in: 0.9...1.5)
+            node.position = SCNVector3(
+                cos(angle) * dist * 0.80,
+                sin(angle) * dist * 1.60,
+                Float.random(in: -0.20...0.20)
+            )
+            // slight Y-axis rotation only: shows the curved ceramic surface from a
+            // natural angle while keeping the outer face mostly toward camera
+            // Z/X rotation exposes the razor-thin shell edges — avoid those
+            node.eulerAngles = SCNVector3(0, Float.random(in: -.pi/5 ... .pi/5), 0)
         }
     }
 
     func buildFragments(scene: SCNScene) -> [SCNNode] {
-        // 8 seeds = fewer physics bodies = better simulator performance for judges
-        let seeds: [SIMD3<Float>] = generateSeeds(count: 8)
+        // 12 seeds: more fragments = more realistic ceramic shard appearance
+        let seeds: [SIMD3<Float>] = generateSeeds(count: 12)
         let geometry = makeVaseGeometry()
 
         guard let posSource = geometry.sources(for: .vertex).first else { return [] }
