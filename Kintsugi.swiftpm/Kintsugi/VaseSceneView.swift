@@ -244,11 +244,13 @@ final class VaseSceneCoordinator: NSObject {
     func ceramicMaterial() -> SCNMaterial {
         let mat = SCNMaterial()
         mat.lightingModel = .phong
-        mat.diffuse.contents = UIColor(red: 0.82, green: 0.78, blue: 0.72, alpha: 1)
-        mat.specular.contents = UIColor(white: 0.4, alpha: 1)
-        mat.shininess = 60
+        // warm off-white glaze — classic Japanese ceramic tone
+        mat.diffuse.contents = UIColor(red: 0.86, green: 0.82, blue: 0.76, alpha: 1)
+        mat.specular.contents = UIColor(white: 0.5, alpha: 1)
+        mat.shininess = 80
         mat.isDoubleSided = true
-        mat.emission.contents = UIColor(red: 0.10, green: 0.09, blue: 0.08, alpha: 1)
+        // subtle warm emission so inner/back faces read as warm clay rather than black
+        mat.emission.contents = UIColor(red: 0.12, green: 0.10, blue: 0.08, alpha: 1)
         return mat
     }
 
@@ -304,39 +306,75 @@ final class VaseSceneCoordinator: NSObject {
         timerNode.runAction(sequenceActions)
     }
 
-    // CI screenshot mode: clean shard shapes using SCNBox — no thin-edge artifacts
-    // Real vase mesh fragments create "comb" spikes at boundary triangles;
-    // SCNBox tiles look like flat ceramic shards with perfectly clean normals.
+    // CI screenshot mode: irregular polygon shards via SCNShape — look like real broken ceramic
+    // Each shard is a unique convex polygon with ceramic thickness, scattered in a radial burst.
     func setupShatterImmediately() {
         guard let scene, let vaseNode, !isShattered else { return }
         isShattered = true
         vaseNode.removeFromParentNode()
 
-        let shardCount = 12
+        // Predefined shard templates: (edgeCount, avgRadius, radiusVariance, extrusionDepth)
+        // Mix of large belly pieces, medium shoulder pieces, small rim/neck shards
+        let shardSpecs: [(edges: Int, radius: CGFloat, variance: CGFloat, depth: CGFloat, scaleX: CGFloat, scaleY: CGFloat)] = [
+            // 4 large belly fragments — chunky, dominate the composition
+            (5, 0.52, 0.18, 0.055, 1.0, 1.4),
+            (6, 0.48, 0.16, 0.050, 1.1, 1.2),
+            (4, 0.44, 0.14, 0.055, 0.9, 1.5),
+            (5, 0.50, 0.20, 0.050, 1.2, 1.1),
+            // 4 medium shoulder/upper fragments
+            (5, 0.34, 0.12, 0.045, 1.0, 1.0),
+            (4, 0.30, 0.10, 0.045, 0.8, 1.3),
+            (6, 0.36, 0.14, 0.040, 1.1, 0.9),
+            (4, 0.32, 0.10, 0.045, 0.9, 1.1),
+            // 4 small rim/neck shards — thin, jagged-looking
+            (4, 0.20, 0.08, 0.035, 0.7, 1.6),
+            (5, 0.18, 0.07, 0.035, 1.0, 1.4),
+            (3, 0.22, 0.09, 0.040, 0.6, 1.8),
+            (4, 0.16, 0.06, 0.030, 0.8, 1.5),
+        ]
+
+        let shardCount = shardSpecs.count
+        // Fixed random seed per shard index for deterministic-looking CI output
+        // (Swift doesn't seed easily, but positions are deterministic by formula)
         for i in 0..<shardCount {
-            // evenly-spaced radial burst, portrait-aspect-scaled
+            let spec = shardSpecs[i]
+
+            // Build irregular convex polygon path
+            let path = UIBezierPath()
+            let angleOffset = CGFloat(i) * 0.7  // unique rotation per shard so they look different
+            for e in 0..<spec.edges {
+                let theta = angleOffset + CGFloat(e) * (2 * .pi / CGFloat(spec.edges))
+                // Vary radius per vertex for organic broken-ceramic look
+                let rVariance = spec.variance * CGFloat(((i * 7 + e * 13) % 11 - 5)) / 5.0
+                let r = max(spec.radius * 0.5, spec.radius + rVariance)
+                let px = cos(theta) * r * spec.scaleX
+                let py = sin(theta) * r * spec.scaleY
+                if e == 0 { path.move(to: CGPoint(x: px, y: py)) }
+                else { path.addLine(to: CGPoint(x: px, y: py)) }
+            }
+            path.close()
+
+            let shape = SCNShape(path: path, extrusionDepth: spec.depth)
+            shape.materials = [ceramicMaterial()]
+            let node = SCNNode(geometry: shape)
+
+            // Scatter in a realistic radial explosion — origin is vase center (0,0,0)
+            // Portrait screen ratio: scale Y more than X so fragments spread vertically
             let baseAngle = Float(i) * 2 * .pi / Float(shardCount)
-            let angle = baseAngle + Float.random(in: -0.28...0.28)
-            let dist = Float.random(in: 0.85...1.50)
-            let x = cos(angle) * dist * 0.72
-            let y = sin(angle) * dist * 1.75
-            let z = Float.random(in: -0.30...0.30)
-
-            // irregular shard dimensions mimicking broken ceramic pieces
-            let w = CGFloat(Float.random(in: 0.30...0.70))
-            let h = CGFloat(Float.random(in: 0.45...1.10))
-            let depth = CGFloat(Float.random(in: 0.03...0.06))  // thin but not razor
-            let box = SCNBox(width: w, height: h, length: depth, chamferRadius: 0.005)
-            box.materials = [ceramicMaterial()]
-
-            let node = SCNNode(geometry: box)
+            let jitter = Float(((i * 17) % 11 - 5)) / 5.0 * 0.35  // deterministic spread
+            let angle = baseAngle + jitter
+            let dist = Float(0.80 + Double((i * 11) % 7) / 7.0 * 0.70)  // 0.80 to 1.50
+            let x = cos(angle) * dist * 0.85   // portrait: compress X
+            let y = sin(angle) * dist * 1.90   // portrait: stretch Y
+            let z = Float(((i * 13) % 9 - 4)) / 4.0 * 0.25  // slight depth variation
             node.position = SCNVector3(x, y, z)
-            // Y + slight Z tilt: fragments face camera with natural variation
-            node.eulerAngles = SCNVector3(
-                Float.random(in: -.pi/10 ... .pi/10),
-                Float.random(in: -.pi/5  ... .pi/5),
-                Float.random(in: -.pi/8  ... .pi/8)
-            )
+
+            // Tilt fragments naturally: mostly facing camera, slight rotation for 3D depth
+            let tiltX = Float(((i * 11) % 7 - 3)) / 3.0 * Float.pi / 9   // ±20°
+            let tiltY = Float(((i * 7) % 9 - 4)) / 4.0 * Float.pi / 6    // ±30°
+            let tiltZ = Float(((i * 13) % 5 - 2)) / 2.0 * Float.pi / 12  // ±15°
+            node.eulerAngles = SCNVector3(tiltX, tiltY, tiltZ)
+
             scene.rootNode.addChildNode(node)
             fragmentNodes.append(node)
         }
