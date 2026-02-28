@@ -247,7 +247,8 @@ final class VaseSceneCoordinator: NSObject {
         mat.diffuse.contents = UIColor(red: 0.82, green: 0.78, blue: 0.72, alpha: 1)
         mat.specular.contents = UIColor(white: 0.4, alpha: 1)
         mat.shininess = 60
-        mat.isDoubleSided = false
+        mat.isDoubleSided = true
+        mat.emission.contents = UIColor(red: 0.10, green: 0.09, blue: 0.08, alpha: 1)
         return mat
     }
 
@@ -321,9 +322,9 @@ final class VaseSceneCoordinator: NSObject {
                 sin(angle) * dist * 1.80,
                 Float.random(in: -0.25...0.25)
             )
-            // Y-axis rotation: tilts each fragment to reveal curved ceramic profile
-            // Z/X rotation exposes razor-thin shell edges — keep those at zero
-            node.eulerAngles = SCNVector3(0, Float.random(in: -.pi/4 ... .pi/4), 0)
+            // minimal Y rotation keeps outer face mostly toward camera,
+            // avoiding the razor-thin cross-section from ever facing the viewer
+            node.eulerAngles = SCNVector3(0, Float.random(in: -.pi/12 ... .pi/12), 0)
         }
     }
 
