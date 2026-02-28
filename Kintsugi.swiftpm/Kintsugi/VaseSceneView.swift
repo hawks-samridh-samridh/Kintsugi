@@ -83,11 +83,11 @@ final class VaseSceneCoordinator: NSObject {
         scene.rootNode.addChildNode(fillLight)
 
         // Back-fill light: illuminates fragment inner faces during shatter so they
-        // appear as warm dark ceramic rather than black. Minimal impact on intact vase.
+        // appear as warm ceramic rather than black. Stronger to soften the spiky edge look.
         let backLight = SCNNode()
         backLight.light = SCNLight()
         backLight.light?.type = .directional
-        backLight.light?.color = UIColor(white: 0.35, alpha: 1)
+        backLight.light?.color = UIColor(white: 0.55, alpha: 1)
         backLight.eulerAngles = SCNVector3(0, Float.pi, 0)  // from behind, facing -z
         scene.rootNode.addChildNode(backLight)
 
@@ -319,14 +319,13 @@ final class VaseSceneCoordinator: NSObject {
             let angle = baseAngle + Float.random(in: -0.3...0.3)
             let dist = Float.random(in: 0.9...1.5)
             node.position = SCNVector3(
-                cos(angle) * dist * 0.80,
-                sin(angle) * dist * 1.60,
-                Float.random(in: -0.20...0.20)
+                cos(angle) * dist * 0.75,
+                sin(angle) * dist * 1.80,
+                Float.random(in: -0.25...0.25)
             )
-            // slight Y-axis rotation only: shows the curved ceramic surface from a
-            // natural angle while keeping the outer face mostly toward camera
-            // Z/X rotation exposes the razor-thin shell edges — avoid those
-            node.eulerAngles = SCNVector3(0, Float.random(in: -.pi/5 ... .pi/5), 0)
+            // Y-axis rotation: rotates each fragment so we see the curved ceramic surface
+            // from a slight angle, giving depth. Z/X rotation exposes thin shell edges.
+            node.eulerAngles = SCNVector3(0, Float.random(in: -.pi/6 ... .pi/6), 0)
         }
     }
 
