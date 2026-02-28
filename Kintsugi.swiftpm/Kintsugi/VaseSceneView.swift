@@ -304,27 +304,41 @@ final class VaseSceneCoordinator: NSObject {
         timerNode.runAction(sequenceActions)
     }
 
-    // CI screenshot mode: shatter immediately — evenly-spaced radial burst for dramatic look
+    // CI screenshot mode: clean shard shapes using SCNBox — no thin-edge artifacts
+    // Real vase mesh fragments create "comb" spikes at boundary triangles;
+    // SCNBox tiles look like flat ceramic shards with perfectly clean normals.
     func setupShatterImmediately() {
         guard let scene, let vaseNode, !isShattered else { return }
         isShattered = true
         vaseNode.removeFromParentNode()
-        fragmentNodes = buildFragments(scene: scene)
-        let count = max(1, fragmentNodes.count)
-        for (i, node) in fragmentNodes.enumerated() {
-            // evenly-spaced radial burst, scaled to portrait aspect ratio
-            // viewport: half-height ≈ 2.49, half-width ≈ 1.14 (fov=45, camera z=6)
-            let baseAngle = Float(i) * 2 * .pi / Float(count)
-            let angle = baseAngle + Float.random(in: -0.3...0.3)
-            let dist = Float.random(in: 0.9...1.5)
-            node.position = SCNVector3(
-                cos(angle) * dist * 0.75,
-                sin(angle) * dist * 1.80,
-                Float.random(in: -0.25...0.25)
+
+        let shardCount = 12
+        for i in 0..<shardCount {
+            // evenly-spaced radial burst, portrait-aspect-scaled
+            let baseAngle = Float(i) * 2 * .pi / Float(shardCount)
+            let angle = baseAngle + Float.random(in: -0.28...0.28)
+            let dist = Float.random(in: 0.85...1.50)
+            let x = cos(angle) * dist * 0.72
+            let y = sin(angle) * dist * 1.75
+            let z = Float.random(in: -0.30...0.30)
+
+            // irregular shard dimensions mimicking broken ceramic pieces
+            let w = CGFloat(Float.random(in: 0.30...0.70))
+            let h = CGFloat(Float.random(in: 0.45...1.10))
+            let depth = CGFloat(Float.random(in: 0.03...0.06))  // thin but not razor
+            let box = SCNBox(width: w, height: h, length: depth, chamferRadius: 0.005)
+            box.materials = [ceramicMaterial()]
+
+            let node = SCNNode(geometry: box)
+            node.position = SCNVector3(x, y, z)
+            // Y + slight Z tilt: fragments face camera with natural variation
+            node.eulerAngles = SCNVector3(
+                Float.random(in: -.pi/10 ... .pi/10),
+                Float.random(in: -.pi/5  ... .pi/5),
+                Float.random(in: -.pi/8  ... .pi/8)
             )
-            // minimal Y rotation keeps outer face mostly toward camera,
-            // avoiding the razor-thin cross-section from ever facing the viewer
-            node.eulerAngles = SCNVector3(0, Float.random(in: -.pi/12 ... .pi/12), 0)
+            scene.rootNode.addChildNode(node)
+            fragmentNodes.append(node)
         }
     }
 
