@@ -335,46 +335,46 @@ final class VaseSceneCoordinator: NSObject {
         isShattered = true
         vaseNode.removeFromParentNode()
 
-        // Camera at z=6, FOV=45° vertical → visible world: x ±2.5, y ±5.4
+        // Empirical safe world-space bounds (camera z=6, FOV=45°): x ±2.0, y ±2.6
         // Each entry: (worldX, worldY, worldZ, tiltX°, tiltY°, tiltZ°, useInnerClay)
-        // 3 center-debris pieces + 5 mid-range + 4 far-edge — no void, nothing off-screen
+        // 3 near-center + 5 mid-range + 4 near-edge — fills screen, no void, nothing off-screen
         typealias ShardPos = (x: Float, y: Float, z: Float, tx: Float, ty: Float, tz: Float, inner: Bool)
         let positions: [ShardPos] = [
-            // --- 3 near-center debris (small, near origin) ---
-            ( 0.30,  0.55,  0.10,  12, -18,   8, true),   // center-right
-            (-0.40, -0.35, -0.10, -10,  20, -12, false),  // center-left
-            ( 0.10, -0.60,  0.05,   8, -10,  15, true),   // just below center
-            // --- 5 mid-range (fill the middle zone) ---
-            (-1.30,  1.80, -0.15,  15,  25, -10, false),  // upper-left
-            ( 1.40,  1.60,  0.10, -12, -20,   8, true),   // upper-right
-            (-1.60, -0.20,  0.20,  18,  15,  12, false),  // left
-            ( 1.50, -0.80, -0.10, -20, -15,  -8, true),   // right-lower
-            ( 0.20, -2.20,  0.15,  10,  18, -15, false),  // lower-center
-            // --- 4 far-edge (dramatic outer scatter) ---
-            (-0.50,  3.50, -0.20, -15, -22,  10, true),   // top
-            ( 1.80,  3.20,  0.10,  20,  15,  -8, false),  // top-right
-            (-1.90, -2.80, -0.10,  -8,  20,  14, true),   // bottom-left
-            ( 0.80, -3.80,  0.20,  12, -18,  -6, false),  // bottom
+            // --- 3 near-center debris ---
+            ( 0.30,  0.50,  0.10,  12, -18,   8, true),
+            (-0.45, -0.40, -0.10, -10,  20, -12, false),
+            ( 0.10, -0.65,  0.05,   8, -10,  15, true),
+            // --- 5 mid-range ---
+            (-1.10,  1.40, -0.15,  15,  25, -10, false),  // upper-left
+            ( 1.15,  1.30,  0.10, -12, -20,   8, true),   // upper-right
+            (-1.55,  0.00,  0.15,  18,  15,  12, false),  // left
+            ( 1.45, -0.75, -0.10, -20, -15,  -8, true),   // right-lower
+            ( 0.10, -1.80,  0.15,  10,  18, -15, false),  // lower-center
+            // --- 4 near-edge (safe: center within ±2.0x, ±2.4y) ---
+            (-0.50,  2.40, -0.20, -15, -22,  10, true),   // top-center-left
+            ( 1.50,  2.20,  0.10,  20,  15,  -8, false),  // top-right
+            (-1.70, -2.20, -0.10,  -8,  20,  14, true),   // bottom-left
+            ( 0.60, -2.40,  0.15,  12, -18,  -6, false),  // bottom-center
         ]
 
         // Shard shape templates paired 1:1 with positions above
         // (edges, radius, variance, extrusionDepth, scaleX, scaleY)
         let specs: [(Int, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat)] = [
-            // center debris: small, irregular
-            (4, 0.22, 0.08, 0.040, 0.9, 1.3),
-            (5, 0.20, 0.07, 0.035, 1.1, 0.9),
-            (4, 0.18, 0.06, 0.035, 0.7, 1.5),
+            // center debris: small
+            (4, 0.20, 0.07, 0.038, 0.9, 1.2),
+            (5, 0.18, 0.06, 0.035, 1.1, 0.9),
+            (4, 0.17, 0.06, 0.032, 0.7, 1.4),
             // mid-range: medium
-            (5, 0.42, 0.14, 0.050, 1.0, 1.3),
-            (6, 0.44, 0.16, 0.050, 1.2, 1.0),
-            (5, 0.38, 0.13, 0.048, 0.9, 1.2),
-            (4, 0.40, 0.14, 0.048, 1.1, 1.1),
-            (5, 0.35, 0.12, 0.045, 1.0, 1.4),
-            // far-edge: large belly chunks
-            (5, 0.56, 0.20, 0.058, 1.0, 1.3),
-            (6, 0.52, 0.18, 0.055, 1.2, 1.1),
-            (5, 0.50, 0.17, 0.055, 0.9, 1.4),
-            (4, 0.48, 0.16, 0.052, 1.1, 1.2),
+            (5, 0.40, 0.13, 0.050, 1.0, 1.3),
+            (6, 0.42, 0.14, 0.048, 1.2, 1.0),
+            (5, 0.36, 0.12, 0.046, 0.9, 1.2),
+            (4, 0.38, 0.13, 0.046, 1.1, 1.1),
+            (5, 0.34, 0.11, 0.044, 1.0, 1.3),
+            // near-edge: large belly chunks
+            (5, 0.50, 0.17, 0.055, 1.0, 1.2),
+            (6, 0.48, 0.16, 0.053, 1.1, 1.0),
+            (5, 0.46, 0.15, 0.052, 0.9, 1.3),
+            (4, 0.44, 0.15, 0.050, 1.1, 1.1),
         ]
 
         for i in 0..<positions.count {

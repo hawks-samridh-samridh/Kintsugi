@@ -27,23 +27,23 @@ let crackPaths: [CrackPath] = [
         CGPoint(x: 0.52, y: 0.56),
         CGPoint(x: 0.49, y: 0.50),
     ]),
-    CrackPath(id: 3, points: [  // upper shoulder left — clipped to stay within shoulder
-        CGPoint(x: 0.38, y: 0.42),
-        CGPoint(x: 0.40, y: 0.37),
-        CGPoint(x: 0.37, y: 0.32),
-        CGPoint(x: 0.40, y: 0.28),
+    CrackPath(id: 3, points: [  // upper shoulder left — x pulled toward center to stay inside vase
+        CGPoint(x: 0.40, y: 0.44),
+        CGPoint(x: 0.42, y: 0.39),
+        CGPoint(x: 0.40, y: 0.34),
+        CGPoint(x: 0.43, y: 0.30),
     ]),
-    CrackPath(id: 4, points: [  // upper shoulder right — clipped to stay within shoulder
-        CGPoint(x: 0.60, y: 0.42),
-        CGPoint(x: 0.62, y: 0.37),
-        CGPoint(x: 0.59, y: 0.32),
-        CGPoint(x: 0.62, y: 0.28),
+    CrackPath(id: 4, points: [  // upper shoulder right — x pulled toward center to stay inside vase
+        CGPoint(x: 0.58, y: 0.44),
+        CGPoint(x: 0.57, y: 0.39),
+        CGPoint(x: 0.59, y: 0.34),
+        CGPoint(x: 0.56, y: 0.30),
     ]),
-    CrackPath(id: 5, points: [  // neck — stays within vase lip, no floating wires above rim
-        CGPoint(x: 0.50, y: 0.30),
-        CGPoint(x: 0.48, y: 0.25),
-        CGPoint(x: 0.51, y: 0.22),
-        CGPoint(x: 0.49, y: 0.19),
+    CrackPath(id: 5, points: [  // neck crack — narrow neck, x stays very central
+        CGPoint(x: 0.50, y: 0.32),
+        CGPoint(x: 0.49, y: 0.28),
+        CGPoint(x: 0.51, y: 0.25),
+        CGPoint(x: 0.50, y: 0.22),
     ]),
 ]
 
