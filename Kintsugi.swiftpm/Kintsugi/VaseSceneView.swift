@@ -64,31 +64,41 @@ final class VaseSceneCoordinator: NSObject {
         let ambientLight = SCNNode()
         ambientLight.light = SCNLight()
         ambientLight.light?.type = .ambient
-        ambientLight.light?.color = UIColor(white: 0.45, alpha: 1)
+        ambientLight.light?.color = UIColor(white: 0.35, alpha: 1)  // lower ambient = more drama
         scene.rootNode.addChildNode(ambientLight)
 
+        // Strong key light from upper-left — creates smooth ceramic highlight gradient
         let keyLight = SCNNode()
         keyLight.light = SCNLight()
         keyLight.light?.type = .directional
-        keyLight.light?.color = UIColor(white: 0.9, alpha: 1)
+        keyLight.light?.color = UIColor(white: 1.0, alpha: 1)
         keyLight.light?.castsShadow = false
-        keyLight.eulerAngles = SCNVector3(-Float.pi / 4, Float.pi / 6, 0)
+        keyLight.eulerAngles = SCNVector3(-Float.pi / 4, Float.pi / 5, 0)
         scene.rootNode.addChildNode(keyLight)
 
+        // Soft fill from right-below to lift shadow side
         let fillLight = SCNNode()
         fillLight.light = SCNLight()
         fillLight.light?.type = .directional
-        fillLight.light?.color = UIColor(white: 0.25, alpha: 1)
-        fillLight.eulerAngles = SCNVector3(Float.pi / 6, -Float.pi / 4, 0)
+        fillLight.light?.color = UIColor(white: 0.30, alpha: 1)
+        fillLight.eulerAngles = SCNVector3(Float.pi / 6, -Float.pi / 3, 0)
         scene.rootNode.addChildNode(fillLight)
 
-        // Back-fill light: illuminates fragment inner faces during shatter so they
-        // appear as warm ceramic rather than black. Stronger to soften the spiky edge look.
+        // Warm rim light from behind-right: gives ceramic a luminous edge for depth
+        let rimLight = SCNNode()
+        rimLight.light = SCNLight()
+        rimLight.light?.type = .directional
+        rimLight.light?.color = UIColor(red: 1.0, green: 0.95, blue: 0.85, alpha: 1)  // warm white
+        rimLight.light?.intensity = 600
+        rimLight.eulerAngles = SCNVector3(Float.pi / 8, -Float.pi * 0.7, 0)  // behind-right
+        scene.rootNode.addChildNode(rimLight)
+
+        // Back-fill light: illuminates fragment inner faces during shatter
         let backLight = SCNNode()
         backLight.light = SCNLight()
         backLight.light?.type = .directional
-        backLight.light?.color = UIColor(white: 0.55, alpha: 1)
-        backLight.eulerAngles = SCNVector3(0, Float.pi, 0)  // from behind, facing -z
+        backLight.light?.color = UIColor(white: 0.50, alpha: 1)
+        backLight.eulerAngles = SCNVector3(0, Float.pi, 0)
         scene.rootNode.addChildNode(backLight)
 
         buildVase()
@@ -153,7 +163,7 @@ final class VaseSceneCoordinator: NSObject {
         ]
 
         let verticalSteps = profile.count
-        let angularSteps = 36
+        let angularSteps = 72  // 2× resolution: eliminates low-poly faceting on belly
         var positions: [SCNVector3] = []
         var normals: [SCNVector3] = []
         var texCoords: [CGPoint] = []
@@ -245,12 +255,23 @@ final class VaseSceneCoordinator: NSObject {
         let mat = SCNMaterial()
         mat.lightingModel = .phong
         // warm off-white glaze — classic Japanese ceramic tone
-        mat.diffuse.contents = UIColor(red: 0.86, green: 0.82, blue: 0.76, alpha: 1)
-        mat.specular.contents = UIColor(white: 0.5, alpha: 1)
-        mat.shininess = 80
+        mat.diffuse.contents = UIColor(red: 0.88, green: 0.84, blue: 0.78, alpha: 1)
+        mat.specular.contents = UIColor(white: 0.55, alpha: 1)
+        mat.shininess = 90
         mat.isDoubleSided = true
-        // subtle warm emission so inner/back faces read as warm clay rather than black
-        mat.emission.contents = UIColor(red: 0.12, green: 0.10, blue: 0.08, alpha: 1)
+        mat.emission.contents = UIColor(red: 0.10, green: 0.08, blue: 0.06, alpha: 1)
+        return mat
+    }
+
+    // Exposed inner clay face — darker, earthier, more matte than the outer glaze
+    func ceramicInnerMaterial() -> SCNMaterial {
+        let mat = SCNMaterial()
+        mat.lightingModel = .phong
+        mat.diffuse.contents = UIColor(red: 0.68, green: 0.60, blue: 0.52, alpha: 1)
+        mat.specular.contents = UIColor(white: 0.10, alpha: 1)
+        mat.shininess = 15
+        mat.isDoubleSided = true
+        mat.emission.contents = UIColor(red: 0.09, green: 0.07, blue: 0.05, alpha: 1)
         return mat
     }
 
@@ -306,75 +327,81 @@ final class VaseSceneCoordinator: NSObject {
         timerNode.runAction(sequenceActions)
     }
 
-    // CI screenshot mode: irregular polygon shards via SCNShape — look like real broken ceramic
-    // Each shard is a unique convex polygon with ceramic thickness, scattered in a radial burst.
+    // CI screenshot mode: irregular polygon shards via SCNShape — look like real broken ceramic.
+    // Explicit world-space positions guarantee: center debris present, even radial spread,
+    // mix of glaze (outer) and clay (inner) faces, no off-screen pieces, no center void.
     func setupShatterImmediately() {
         guard let scene, let vaseNode, !isShattered else { return }
         isShattered = true
         vaseNode.removeFromParentNode()
 
-        // Predefined shard templates: (edgeCount, avgRadius, radiusVariance, extrusionDepth)
-        // Mix of large belly pieces, medium shoulder pieces, small rim/neck shards
-        let shardSpecs: [(edges: Int, radius: CGFloat, variance: CGFloat, depth: CGFloat, scaleX: CGFloat, scaleY: CGFloat)] = [
-            // 4 large belly fragments — chunky, dominate the composition
-            (5, 0.52, 0.18, 0.055, 1.0, 1.4),
-            (6, 0.48, 0.16, 0.050, 1.1, 1.2),
-            (4, 0.44, 0.14, 0.055, 0.9, 1.5),
-            (5, 0.50, 0.20, 0.050, 1.2, 1.1),
-            // 4 medium shoulder/upper fragments
-            (5, 0.34, 0.12, 0.045, 1.0, 1.0),
-            (4, 0.30, 0.10, 0.045, 0.8, 1.3),
-            (6, 0.36, 0.14, 0.040, 1.1, 0.9),
-            (4, 0.32, 0.10, 0.045, 0.9, 1.1),
-            // 4 small rim/neck shards — thin, jagged-looking
-            (4, 0.20, 0.08, 0.035, 0.7, 1.6),
-            (5, 0.18, 0.07, 0.035, 1.0, 1.4),
-            (3, 0.22, 0.09, 0.040, 0.6, 1.8),
-            (4, 0.16, 0.06, 0.030, 0.8, 1.5),
+        // Camera at z=6, FOV=45° vertical → visible world: x ±2.5, y ±5.4
+        // Each entry: (worldX, worldY, worldZ, tiltX°, tiltY°, tiltZ°, useInnerClay)
+        // 3 center-debris pieces + 5 mid-range + 4 far-edge — no void, nothing off-screen
+        typealias ShardPos = (x: Float, y: Float, z: Float, tx: Float, ty: Float, tz: Float, inner: Bool)
+        let positions: [ShardPos] = [
+            // --- 3 near-center debris (small, near origin) ---
+            ( 0.30,  0.55,  0.10,  12, -18,   8, true),   // center-right
+            (-0.40, -0.35, -0.10, -10,  20, -12, false),  // center-left
+            ( 0.10, -0.60,  0.05,   8, -10,  15, true),   // just below center
+            // --- 5 mid-range (fill the middle zone) ---
+            (-1.30,  1.80, -0.15,  15,  25, -10, false),  // upper-left
+            ( 1.40,  1.60,  0.10, -12, -20,   8, true),   // upper-right
+            (-1.60, -0.20,  0.20,  18,  15,  12, false),  // left
+            ( 1.50, -0.80, -0.10, -20, -15,  -8, true),   // right-lower
+            ( 0.20, -2.20,  0.15,  10,  18, -15, false),  // lower-center
+            // --- 4 far-edge (dramatic outer scatter) ---
+            (-0.50,  3.50, -0.20, -15, -22,  10, true),   // top
+            ( 1.80,  3.20,  0.10,  20,  15,  -8, false),  // top-right
+            (-1.90, -2.80, -0.10,  -8,  20,  14, true),   // bottom-left
+            ( 0.80, -3.80,  0.20,  12, -18,  -6, false),  // bottom
         ]
 
-        let shardCount = shardSpecs.count
-        // Fixed random seed per shard index for deterministic-looking CI output
-        // (Swift doesn't seed easily, but positions are deterministic by formula)
-        for i in 0..<shardCount {
-            let spec = shardSpecs[i]
+        // Shard shape templates paired 1:1 with positions above
+        // (edges, radius, variance, extrusionDepth, scaleX, scaleY)
+        let specs: [(Int, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat)] = [
+            // center debris: small, irregular
+            (4, 0.22, 0.08, 0.040, 0.9, 1.3),
+            (5, 0.20, 0.07, 0.035, 1.1, 0.9),
+            (4, 0.18, 0.06, 0.035, 0.7, 1.5),
+            // mid-range: medium
+            (5, 0.42, 0.14, 0.050, 1.0, 1.3),
+            (6, 0.44, 0.16, 0.050, 1.2, 1.0),
+            (5, 0.38, 0.13, 0.048, 0.9, 1.2),
+            (4, 0.40, 0.14, 0.048, 1.1, 1.1),
+            (5, 0.35, 0.12, 0.045, 1.0, 1.4),
+            // far-edge: large belly chunks
+            (5, 0.56, 0.20, 0.058, 1.0, 1.3),
+            (6, 0.52, 0.18, 0.055, 1.2, 1.1),
+            (5, 0.50, 0.17, 0.055, 0.9, 1.4),
+            (4, 0.48, 0.16, 0.052, 1.1, 1.2),
+        ]
 
-            // Build irregular convex polygon path
+        for i in 0..<positions.count {
+            let pos = positions[i]
+            let spec = specs[i]
+
+            // Build irregular convex polygon path — unique rotation per shard
             let path = UIBezierPath()
-            let angleOffset = CGFloat(i) * 0.7  // unique rotation per shard so they look different
-            for e in 0..<spec.edges {
-                let theta = angleOffset + CGFloat(e) * (2 * .pi / CGFloat(spec.edges))
-                // Vary radius per vertex for organic broken-ceramic look
-                let rVariance = spec.variance * CGFloat(((i * 7 + e * 13) % 11 - 5)) / 5.0
-                let r = max(spec.radius * 0.5, spec.radius + rVariance)
-                let px = cos(theta) * r * spec.scaleX
-                let py = sin(theta) * r * spec.scaleY
+            let angleOffset = CGFloat(i) * 0.65
+            for e in 0..<spec.0 {
+                let theta = angleOffset + CGFloat(e) * (2 * .pi / CGFloat(spec.0))
+                let rVar = spec.2 * CGFloat(((i * 7 + e * 13) % 11) - 5) / 5.0
+                let r = max(spec.1 * 0.5, spec.1 + rVar)
+                let px = cos(theta) * r * spec.4
+                let py = sin(theta) * r * spec.5
                 if e == 0 { path.move(to: CGPoint(x: px, y: py)) }
                 else { path.addLine(to: CGPoint(x: px, y: py)) }
             }
             path.close()
 
-            let shape = SCNShape(path: path, extrusionDepth: spec.depth)
-            shape.materials = [ceramicMaterial()]
+            let shape = SCNShape(path: path, extrusionDepth: spec.3)
+            shape.materials = [pos.inner ? ceramicInnerMaterial() : ceramicMaterial()]
+
             let node = SCNNode(geometry: shape)
-
-            // Scatter in a realistic radial explosion — origin is vase center (0,0,0)
-            // Camera at z=6, FOV=45°: visible x ≈ ±2.5, visible y ≈ ±5.4
-            // dist range 0.8–2.8 fills the screen nicely with fragments spread in all directions
-            let baseAngle = Float(i) * 2 * .pi / Float(shardCount)
-            let jitter = Float(((i * 17) % 11 - 5)) / 5.0 * 0.28
-            let angle = baseAngle + jitter
-            let dist = Float(0.80 + Double((i * 11) % 7) / 7.0 * 2.00)  // 0.8 – 2.8
-            let x = cos(angle) * dist * 0.75   // ±2.1 max, fits screen width
-            let y = sin(angle) * dist * 1.10   // ±3.1 max, fits screen height
-            let z = Float(((i * 13) % 9 - 4)) / 4.0 * 0.30
-            node.position = SCNVector3(x, y, z)
-
-            // Tilt fragments naturally: mostly facing camera, slight rotation for 3D depth
-            let tiltX = Float(((i * 11) % 7 - 3)) / 3.0 * Float.pi / 9   // ±20°
-            let tiltY = Float(((i * 7) % 9 - 4)) / 4.0 * Float.pi / 6    // ±30°
-            let tiltZ = Float(((i * 13) % 5 - 2)) / 2.0 * Float.pi / 12  // ±15°
-            node.eulerAngles = SCNVector3(tiltX, tiltY, tiltZ)
+            node.position = SCNVector3(pos.x, pos.y, pos.z)
+            let toRad = Float.pi / 180
+            node.eulerAngles = SCNVector3(pos.tx * toRad, pos.ty * toRad, pos.tz * toRad)
 
             scene.rootNode.addChildNode(node)
             fragmentNodes.append(node)
