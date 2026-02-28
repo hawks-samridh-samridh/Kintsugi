@@ -359,15 +359,15 @@ final class VaseSceneCoordinator: NSObject {
             let node = SCNNode(geometry: shape)
 
             // Scatter in a realistic radial explosion — origin is vase center (0,0,0)
-            // Mix near/far pieces so all visible on screen with none off-screen
+            // Camera at z=6, FOV=45°: visible x ≈ ±2.5, visible y ≈ ±5.4
+            // dist range 0.8–2.8 fills the screen nicely with fragments spread in all directions
             let baseAngle = Float(i) * 2 * .pi / Float(shardCount)
-            let jitter = Float(((i * 17) % 11 - 5)) / 5.0 * 0.30
+            let jitter = Float(((i * 17) % 11 - 5)) / 5.0 * 0.28
             let angle = baseAngle + jitter
-            // dist range 0.35–1.10: close pieces near origin, far pieces near screen edge
-            let dist = Float(0.35 + Double((i * 11) % 7) / 7.0 * 0.75)
-            let x = cos(angle) * dist * 0.90
-            let y = sin(angle) * dist * 1.35
-            let z = Float(((i * 13) % 9 - 4)) / 4.0 * 0.20
+            let dist = Float(0.80 + Double((i * 11) % 7) / 7.0 * 2.00)  // 0.8 – 2.8
+            let x = cos(angle) * dist * 0.75   // ±2.1 max, fits screen width
+            let y = sin(angle) * dist * 1.10   // ±3.1 max, fits screen height
+            let z = Float(((i * 13) % 9 - 4)) / 4.0 * 0.30
             node.position = SCNVector3(x, y, z)
 
             // Tilt fragments naturally: mostly facing camera, slight rotation for 3D depth
