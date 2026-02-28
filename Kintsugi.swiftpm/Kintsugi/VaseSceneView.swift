@@ -149,16 +149,21 @@ final class VaseSceneCoordinator: NSObject {
         // tokkuri silhouette: narrow neck, wide belly, small base
         let profile: [(r: Float, y: Float)] = [
             (0.12, -1.50),  // base center
-            (0.28, -1.40),  // base edge
-            (0.50, -1.10),  // lower belly
-            (0.62, -0.60),  // widest belly
-            (0.58,  0.00),  // mid belly
-            (0.45,  0.45),  // upper belly
-            (0.28,  0.75),  // shoulder
-            (0.18,  0.95),  // neck bottom
-            (0.14,  1.15),  // neck mid
-            (0.16,  1.30),  // lip flare
-            (0.20,  1.42),  // lip
+            (0.22, -1.44),  // base taper
+            (0.32, -1.34),  // base edge
+            (0.44, -1.18),  // lower belly rise
+            (0.55, -0.90),  // lower belly
+            (0.62, -0.58),  // widest belly
+            (0.60, -0.28),  // upper belly start
+            (0.56,  0.05),  // mid belly
+            (0.48,  0.32),  // upper belly
+            (0.38,  0.55),  // shoulder start
+            (0.28,  0.72),  // shoulder
+            (0.20,  0.88),  // neck base
+            (0.15,  1.05),  // neck lower
+            (0.13,  1.20),  // neck mid
+            (0.15,  1.33),  // lip flare
+            (0.20,  1.44),  // lip rim
             (0.18,  1.50),  // lip top
         ]
 
@@ -335,46 +340,46 @@ final class VaseSceneCoordinator: NSObject {
         isShattered = true
         vaseNode.removeFromParentNode()
 
-        // Empirical safe world-space bounds (camera z=6, FOV=45°): x ±2.0, y ±2.6
+        // Safe world-space bounds confirmed empirically: large pieces (r≈0.5) need center y ≤ ±1.8
+        // Vase spans world y ±1.5 — shards cluster in that same zone, spread radially outward
         // Each entry: (worldX, worldY, worldZ, tiltX°, tiltY°, tiltZ°, useInnerClay)
-        // 3 near-center + 5 mid-range + 4 near-edge — fills screen, no void, nothing off-screen
         typealias ShardPos = (x: Float, y: Float, z: Float, tx: Float, ty: Float, tz: Float, inner: Bool)
         let positions: [ShardPos] = [
-            // --- 3 near-center debris ---
-            ( 0.30,  0.50,  0.10,  12, -18,   8, true),
-            (-0.45, -0.40, -0.10, -10,  20, -12, false),
-            ( 0.10, -0.65,  0.05,   8, -10,  15, true),
-            // --- 5 mid-range ---
-            (-1.10,  1.40, -0.15,  15,  25, -10, false),  // upper-left
-            ( 1.15,  1.30,  0.10, -12, -20,   8, true),   // upper-right
-            (-1.55,  0.00,  0.15,  18,  15,  12, false),  // left
-            ( 1.45, -0.75, -0.10, -20, -15,  -8, true),   // right-lower
-            ( 0.10, -1.80,  0.15,  10,  18, -15, false),  // lower-center
-            // --- 4 near-edge (safe: center within ±2.0x, ±2.4y) ---
-            (-0.50,  2.40, -0.20, -15, -22,  10, true),   // top-center-left
-            ( 1.50,  2.20,  0.10,  20,  15,  -8, false),  // top-right
-            (-1.70, -2.20, -0.10,  -8,  20,  14, true),   // bottom-left
-            ( 0.60, -2.40,  0.15,  12, -18,  -6, false),  // bottom-center
+            // 3 center pieces — fill the void where the vase was, medium-sized
+            ( 0.30,  0.45,  0.10,  12, -18,   8, true),
+            (-0.50,  0.10, -0.10, -10,  20, -12, false),
+            ( 0.10, -0.60,  0.05,   8, -10,  15, true),
+            // 5 mid-range pieces — radial spread at moderate distance
+            (-1.00,  1.20, -0.15,  15,  25, -10, false),
+            ( 1.05,  1.10,  0.10, -12, -20,   8, true),
+            (-1.30,  0.00,  0.15,  18,  15,  12, false),
+            ( 1.20, -0.70, -0.10, -20, -15,  -8, true),
+            ( 0.05, -1.45,  0.15,  10,  18, -15, false),
+            // 4 outer pieces — large, centers ≤ y±1.8 so piece edges stay on-screen
+            (-0.35,  1.75, -0.20, -15, -22,  10, true),
+            ( 1.25,  1.60,  0.10,  20,  15,  -8, false),
+            (-1.40, -1.60, -0.10,  -8,  20,  14, true),
+            ( 0.40, -1.75,  0.15,  12, -18,  -6, false),
         ]
 
-        // Shard shape templates paired 1:1 with positions above
+        // Shape templates: center pieces are MEDIUM (not tiny), outer pieces are LARGE
         // (edges, radius, variance, extrusionDepth, scaleX, scaleY)
         let specs: [(Int, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat)] = [
-            // center debris: small
-            (4, 0.20, 0.07, 0.038, 0.9, 1.2),
-            (5, 0.18, 0.06, 0.035, 1.1, 0.9),
-            (4, 0.17, 0.06, 0.032, 0.7, 1.4),
+            // center: medium-sized irregular shards
+            (5, 0.35, 0.12, 0.048, 1.0, 1.3),
+            (4, 0.38, 0.13, 0.046, 1.2, 1.0),
+            (5, 0.32, 0.11, 0.044, 0.8, 1.4),
             // mid-range: medium
-            (5, 0.40, 0.13, 0.050, 1.0, 1.3),
-            (6, 0.42, 0.14, 0.048, 1.2, 1.0),
+            (5, 0.40, 0.13, 0.050, 1.0, 1.2),
+            (6, 0.42, 0.14, 0.050, 1.1, 1.0),
             (5, 0.36, 0.12, 0.046, 0.9, 1.2),
-            (4, 0.38, 0.13, 0.046, 1.1, 1.1),
+            (4, 0.38, 0.13, 0.048, 1.1, 1.1),
             (5, 0.34, 0.11, 0.044, 1.0, 1.3),
-            // near-edge: large belly chunks
-            (5, 0.50, 0.17, 0.055, 1.0, 1.2),
-            (6, 0.48, 0.16, 0.053, 1.1, 1.0),
-            (5, 0.46, 0.15, 0.052, 0.9, 1.3),
-            (4, 0.44, 0.15, 0.050, 1.1, 1.1),
+            // outer: large belly chunks
+            (5, 0.50, 0.17, 0.056, 1.0, 1.2),
+            (6, 0.52, 0.18, 0.055, 1.2, 1.0),
+            (5, 0.48, 0.16, 0.054, 0.9, 1.3),
+            (4, 0.46, 0.15, 0.052, 1.1, 1.1),
         ]
 
         for i in 0..<positions.count {
